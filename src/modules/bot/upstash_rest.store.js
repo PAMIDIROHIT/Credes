@@ -11,32 +11,43 @@ export class UpstashRestStore {
   async read(key) {
     if (this.cache.has(key)) return this.cache.get(key);
     
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
     try {
       const res = await fetch(`${this.url}/get/${key}`, {
-        headers: { Authorization: `Bearer ${this.token}` }
+        headers: { Authorization: `Bearer ${this.token}` },
+        signal: controller.signal
       });
       const data = await res.json();
       const result = data.result ? JSON.parse(data.result) : undefined;
       if (result) this.cache.set(key, result);
       return result;
     } catch (e) {
-      logger.warn(`Upstash REST Read Error: ${e.message}`);
+      logger.warn(`Upstash REST Read Error (${key}): ${e.message}`);
       return undefined;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
   async write(key, value) {
-    // Update cache immediately to prevent race conditions
     this.cache.set(key, value);
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     
     try {
       await fetch(`${this.url}/set/${key}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.token}` },
-        body: JSON.stringify(value)
+        body: JSON.stringify(value),
+        signal: controller.signal
       });
     } catch (e) {
-      logger.warn(`Upstash REST Write Error: ${e.message}`);
+      logger.warn(`Upstash REST Write Error (${key}): ${e.message}`);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

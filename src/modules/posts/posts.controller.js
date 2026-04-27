@@ -36,3 +36,12 @@ export const retry = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteById = async (req, res, next) => {
+  try {
+    const result = await postsService.deletePost(req.user.id, req.params.id);
+    return sendSuccess(res, result, 'Post cancelled successfully');
+  } catch (error) {
+    next(error);
+  }
+};

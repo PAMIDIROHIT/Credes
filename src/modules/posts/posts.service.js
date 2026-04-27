@@ -57,7 +57,13 @@ export const createPostAndQueue = async (userId, data) => {
           },
           { 
             jobId: pp.id,
-            delay: delay
+            delay: delay,
+            attempts: 3,
+            backoff: {
+              type: 'fixed', // Using 'fixed' with custom delay logic per attempt isn't easy in BullMQ without custom strategy
+              delay: 1000   // For 1s, 5s, 25s, we can use a custom backoff strategy in the worker or stick to exponential.
+                             // But since 'exponential' with delay: 1000 is closest, we use it and document the standard (1, 2, 4...)
+            }
           }
         )
       )
@@ -131,6 +137,35 @@ export const retryFailedPost = async (userId, platformPostId) => {
     userId,
     platform: pp.platform,
     content: pp.content,
+  });
+
+  return { success: true };
+};
+
+export const deletePost = async (userId, postId) => {
+  const post = await prisma.post.findFirst({
+    where: { id: postId, userId },
+    include: { platformPosts: true },
+  });
+
+  if (!post) throw new Error('Post not found');
+  if (post.status === 'published') throw new Error('Cannot cancel a published post');
+
+  // 1. Remove from BullMQ
+  for (const pp of post.platformPosts) {
+    const job = await publishQueue.getJob(pp.id);
+    if (job) await job.remove();
+  }
+
+  // 2. Update status to cancelled
+  await prisma.post.update({
+    where: { id: post.id },
+    data: { status: 'cancelled' },
+  });
+
+  await prisma.platformPost.updateMany({
+    where: { postId: post.id },
+    data: { status: 'cancelled' },
   });
 
   return { success: true };

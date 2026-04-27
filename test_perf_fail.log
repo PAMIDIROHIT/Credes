@@ -1,0 +1,45 @@
+(node:19108) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ FAIL  tests/integration/performance.test.js
+  ΓùÅ ≡ƒôè Senior SDE Telemetry Verification ΓÇ║ Should track Database Query Latency via Prisma Extensions
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "PRISMA", "QUERY_EXEC", Any<String>, Any<Object>
+    Received: "REDIS", "CACHE_MISS", "8.96", {"key": "test-key"}
+
+    Number of calls: 1
+
+      35 |     await prisma.user.findUnique({ where: { id: 'any' } });
+      36 |     
+    > 37 |     expect(spy).toHaveBeenCalledWith('PRISMA', 'QUERY_EXEC', expect.any(String), expect.any(Object));
+         |                 ^
+      38 |   });
+      39 |
+      40 |   test('Telemetry Summary should track metrics correctly', () => {
+
+      at Object.<anonymous> (tests/integration/performance.test.js:37:17)
+
+
+  ΓùÅ Test suite failed to run
+
+    Stream isn't writeable and enableOfflineQueue options is false
+
+      46 |   afterAll(async () => {
+      47 |     await prisma.$disconnect();
+    > 48 |     if (redis) await redis.quit();
+         |                            ^
+      49 |   });
+      50 | });
+      51 |
+
+      at EventEmitter.sendCommand (node_modules/ioredis/built/Redis.js:365:32)
+      at EventEmitter.quit (node_modules/ioredis/built/utils/Commander.js:90:25)
+      at Object.<anonymous> (tests/integration/performance.test.js:48:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 2 passed, 3 total
+Snapshots:   0 total
+Time:        0.634 s, estimated 1 s
+Ran all test suites matching tests/integration/performance.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

@@ -1,4 +1,6 @@
 import express from 'express';
+import { webhookCallback } from 'grammy';
+
 import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
@@ -14,41 +16,26 @@ import './modules/posts/posts.scheduler.js';
 import redisInstance from './config/redis.js';
 import { errorHandler } from './middlewares/errorHandler.middleware.js';
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
-  if (process.env.NODE_ENV !== 'test') process.exit(1);
-});
-
 const app = express();
 const PORT = parseInt(env.PORT || '3005', 10);
 
-// Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/posts', postsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-// Health Check
 app.get('/health', (req, res) => res.json({ status: 'OK', uptime: process.uptime() }));
-
-// Global Error Handler
 app.use(errorHandler);
 
-// Initialize Components (Gracefully)
 export const init = async () => {
   logger.info("🚀 Initializing Postly Engine...");
   
-  // 1. Worker (Requires Redis)
+  // 1. Worker
   if (redisInstance) {
     try {
       setupWorker();
@@ -58,36 +45,51 @@ export const init = async () => {
     }
   }
 
+
   // 2. Bot
-  if (env.TELEGRAM_BOT_TOKEN && process.env.NODE_ENV !== 'test') {
-    bot.start({
-      onStart: (botInfo) => logger.info(`✅ Telegram Bot @${botInfo.username} is active`),
-    }).catch(err => {
-      if (err.message.includes('Conflict')) {
-        logger.warn("⚠️ Bot Polling Conflict detected. Another instance is active.");
-      } else {
-        logger.error("❌ Bot failed:", err.message);
+  // Strict check: only skip bot if NODE_ENV is explicitly 'test'
+  if (env.TELEGRAM_BOT_TOKEN && env.NODE_ENV !== 'test') {
+    (async () => {
+      try {
+        if (env.NODE_ENV === 'production' && env.TELEGRAM_WEBHOOK_URL) {
+          logger.info(`🌐 Setting Bot Webhook to: ${env.TELEGRAM_WEBHOOK_URL}`);
+          await bot.api.setWebhook(env.TELEGRAM_WEBHOOK_URL);
+          // Assuming grammy's webhookCallback is available, adding a route.
+          // (Requires app to be available, so moving router mapping here)
+          app.use('/bot/webhook', webhookCallback(bot, 'express'));
+          logger.info(`✅ Webhook listener mounted at /bot/webhook`);
+        } else {
+          logger.info("🧹 Development Mode: Dropping webhooks and using Polling...");
+          await bot.api.deleteWebhook({ drop_pending_updates: true });
+          await bot.start({
+            onStart: (botInfo) => logger.info(`✅ Telegram Bot @${botInfo.username} is polling`),
+          });
+        }
+      } catch (err) {
+        logger.error("❌ Bot failure:", err.message);
       }
-    });
+    })();
+  } else {
+    logger.warn(`⚠️ Bot Startup Skipped (Env: ${env.NODE_ENV})`);
   }
 
-  // 3. Server
-  if (process.env.NODE_ENV !== 'test') {
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      logger.info(`✅ API Server is alive on port ${PORT}`);
-    });
 
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        logger.error(`PORT ${PORT} is busy. Trying ${PORT + 1}...`);
-      }
+  // 3. Server
+  if (env.NODE_ENV !== 'test') {
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`✅ API Server is alive on port ${PORT}`);
     });
   }
 };
 
-// Only auto-init if not being imported for tests
-if (process.env.NODE_ENV !== 'test') {
-  init();
+// Check if we are running the main script
+const isMain = import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`;
+const shouldInit = env.NODE_ENV !== 'test' && !process.argv.includes('--no-init');
+
+if (shouldInit) {
+  init().catch(e => logger.error('Engine Init Failed:', e));
+} else {
+  logger.warn(`🚀 Engine in ${env.NODE_ENV} mode. Manual init required.`);
 }
 
 export default app;

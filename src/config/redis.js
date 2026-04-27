@@ -1,36 +1,54 @@
 import Redis from 'ioredis';
 import { env } from './env.js';
 import { logger } from '../utils/logger.js';
+import { telemetry } from '../utils/telemetry.js';
 
-let redis = null;
+let redisInstance = null;
 
-// Only even TRY to connect if it's not a localhost default that we know is missing
+const createRedisProxy = (client) => {
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop === 'get') {
+        return async (key) => {
+          const start = telemetry.startTimer();
+          let value = null;
+          try {
+            value = await target.get(key);
+          } catch (e) {
+            logger.error(`Redis Get Error: ${e.message}`);
+          }
+          const duration = telemetry.endTimer(start);
+          
+          if (value) {
+            telemetry.trace('REDIS', 'CACHE_HIT', duration, { key });
+          } else {
+            telemetry.trace('REDIS', 'CACHE_MISS', duration, { key });
+          }
+          return value;
+        };
+      }
+      const val = target[prop];
+      return typeof val === 'function' ? val.bind(target) : val;
+    }
+  });
+};
+
 if (env.REDIS_URL && !env.REDIS_URL.includes('localhost')) {
   try {
-    redis = new Redis(env.REDIS_URL, {
+    const client = new Redis(env.REDIS_URL, {
       maxRetriesPerRequest: 0,
       enableOfflineQueue: false,
-      connectTimeout: 2000,
-      lazyConnect: false,
-      retryStrategy: () => null // Stop retrying immediately
+      connectTimeout: 5000,
     });
     
-    redis.on('error', (err) => {
-        if (err.message.includes('WRONGPASS')) {
-            logger.error('❌ Redis Auth Failed (WRONGPASS). Check your password in .env.');
-            if (redis) {
-              redis.disconnect();
-              redis = null;
-            }
-        } else {
-            logger.warn(`⚠️ Redis unreachable: ${err.message}`);
-        }
-    });
-  } catch (e) {
-    logger.error('❌ Redis Init Error:', e.message);
+    redisInstance = createRedisProxy(client);
+    client.ping().catch(() => {});
+    logger.info("📡 Upstash Redis traces active");
+  } catch (err) {
+    logger.error("❌ Redis Initialization Error:", err.message);
   }
 } else {
-    logger.info('ℹ️ Redis set to localhost or disabled. Using In-Memory fallback mode for 10/10 stability.');
+  logger.info('ℹ️ Redis disabled/localhost. Tracing inactive.');
 }
 
-export default redis;
+export default redisInstance;

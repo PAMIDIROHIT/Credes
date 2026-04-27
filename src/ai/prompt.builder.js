@@ -17,9 +17,10 @@ export const buildPrompt = ({ idea, postType, tone, language, platforms }) => {
     OUTPUT LANGUAGE: ${language}
     
     INSTRUCTIONS:
-    1. Adapt the CORE IDEA for each platform listed below.
+    1. Adapt the CORE IDEA ONLY for the following platforms: ${platforms.map(p => p.toUpperCase()).join(', ')}.
     2. Strictly follow the specific rules for each platform.
     3. Ensure the tone is consistent with the GLOBAL TONE, except for LinkedIn where it should remain Professional/Authoritative.
+    4. ABSOLUTELY DO NOT return JSON objects for platforms that were not explicitly listed above.
     
     PLATFORM-SPECIFIC GUIDELINES:
     ${selectedRules}

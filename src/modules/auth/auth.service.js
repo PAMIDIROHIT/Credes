@@ -1,3 +1,6 @@
+import bcrypt from 'bcrypt';
+import prisma from '../../config/db.js';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.util.js';
 import { AppError } from '../../utils/AppError.js';
 
 export const register = async (email, password, name) => {

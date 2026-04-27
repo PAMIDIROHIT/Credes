@@ -1,6 +1,7 @@
 import prisma from '../../config/db.js';
 import { publishQueue } from '../../config/queue.js';
 import { logger } from '../../utils/logger.js';
+console.log('>>> [DEBUG] Scheduler dependencies imported');
 
 /**
  * ScheduledPostProcessor

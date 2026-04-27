@@ -1,28 +1,29 @@
 import { Worker } from 'bullmq';
+console.log('>>> [DEBUG] BullMQ Worker imported');
+import { telemetry } from '../utils/telemetry.js';
 import redis from '../config/redis.js';
 import prisma from '../config/db.js';
+import { logger } from '../utils/logger.js';
 import { decrypt } from '../utils/crypto.util.js';
 import { getPublisher } from '../publishers/index.js';
-import { logger } from '../utils/logger.js';
+console.log('>>> [DEBUG] Worker dependencies imported');
 
 export const setupWorker = () => {
   const worker = new Worker(
     'post-publisher',
     async (job) => {
       const { platformPostId, userId, platform, content } = job.data;
-      const startTime = Date.now();
+      const start = telemetry.startTimer();
       const workerId = process.pid;
       
-      logger.info(`[WORKER:${workerId}] 🟢 Executing Job ${job.id} | Platform: ${platform.toUpperCase()}`);
+      logger.info(`[THREAD:${workerId}] 🚀 Processing Job ${job.id} | Attempt ${job.attemptsMade + 1}`);
 
       try {
-        // 1. Update status to processing
         await prisma.platformPost.update({
           where: { id: platformPostId },
           data: { status: 'processing' },
         });
 
-        // 2. Get social account
         const socialAccount = await prisma.socialAccount.findFirst({
           where: { userId, platform },
         });
@@ -30,13 +31,11 @@ export const setupWorker = () => {
         if (!socialAccount) throw new Error(`No social account linked for ${platform}`);
         const accessToken = decrypt(socialAccount.accessTokenEnc);
         
-        // 3. Execute platform-specific publishing
         const publisher = getPublisher(platform);
         if (!publisher) throw new Error(`Publisher not found for ${platform}`);
 
         const result = await publisher(content, accessToken);
 
-        // 4. Update status to published
         await prisma.platformPost.update({
           where: { id: platformPostId },
           data: {
@@ -45,12 +44,19 @@ export const setupWorker = () => {
           },
         });
 
-        const duration = Date.now() - startTime;
-        logger.info(`[WORKER:${workerId}] ✅ Job ${job.id} SUCCESS (${platform}) | Duration: ${duration}ms`);
+        const duration = telemetry.endTimer(start);
+        telemetry.trace('WORKER', 'JOB_SUCCESS', duration, { id: job.id, platform, attempt: job.attemptsMade + 1 });
         return result;
       } catch (error) {
-        const duration = Date.now() - startTime;
-        logger.error(`[WORKER:${workerId}] ❌ Job ${job.id} FAILED (${platform}) | Duration: ${duration}ms | Error: ${error.message}`);
+        const duration = telemetry.endTimer(start);
+        const retryIn = job.attemptsMade === 0 ? '2s' : (job.attemptsMade === 1 ? '5s' : 'failed ultimate');
+        
+        telemetry.trace('WORKER', 'JOB_FAILED', duration, { 
+          id: job.id, 
+          err: error.message, 
+          retryIn,
+          attempt: job.attemptsMade + 1 
+        });
         
         await prisma.platformPost.update({
           where: { id: platformPostId },
@@ -67,25 +73,10 @@ export const setupWorker = () => {
     { connection: redis }
   );
 
-  // Queue Lifecycle Telemetry
-  worker.on('active', (job) => {
-    logger.info(`📊 Queue Monitor: Job ${job.id} is now ACTIVE`);
-  });
-
-  worker.on('completed', (job) => {
-    logger.info(`📊 Queue Monitor: Job ${job.id} is COMPLETED`);
-  });
-
   worker.on('error', (err) => {
-    if (err.message.includes('WRONGPASS')) {
-      // Silence it, we already log it in redis.js
-    } else {
-      logger.error('Worker Error:', err.message);
+    if (!err.message.includes('WRONGPASS')) {
+      logger.error('Worker System Error:', err.message);
     }
-  });
-
-  worker.on('failed', (job, err) => {
-    logger.error(`Job ${job?.id} failed ultimately:`, err);
   });
 
   return worker;

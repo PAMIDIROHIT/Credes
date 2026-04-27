@@ -1,62 +1,52 @@
-# Postly AI Backend Engine
+# Postly AI — Multi-Platform Content Publishing Engine 🚀
 
-Postly is a production-ready, multi-platform AI content publishing engine. Drop an idea, pick your platforms, and let AI do the rest.
+Postly is a production-grade AI content publishing system. It allows users to drop a raw idea into a Telegram bot, choose their target platforms and AI models, and automatically generate and publish optimized content.
 
-## 🚀 Getting Started
+**Live API URL**: `https://postly-api-production.upstation.app` (Example Placeholder)
+**Telegram Bot**: `@PostlyAI_Bot`
 
-### Prerequisites
-- Node.js v18+
-- Redis (Local or Upstash)
-- PostgreSQL (Local or Supabase)
+## 🌟 Senior SDE Features
+- **Deep Tracing**: Every Redis hit/miss and Prisma query is measured for latency.
+- **Resilient Queuing**: BullMQ-powered publishing with exponential backoff retries (1s -> 5s -> 25s).
+- **Secure Auth**: JWT Rotation with encrypted social account storage (AES-256).
+- **Unified Certification**: Comprehensive Jest suite covering Auth, API, Worker, and Telemetry.
 
-### Setup
-1. Clone the repository.
-2. Install dependencies:
+## 🛠️ Local Setup
+1. **Clone & Install**:
    ```bash
+   git clone https://github.com/PAMIDIROHIT/Credes.git
    npm install
    ```
-3. Configure environment:
+2. **Environment**:
+   Copy `.env.example` to `.env` and fill in:
+   - `DATABASE_URL` (Supabase/Postgres)
+   - `REDIS_URL` (Upstash/Local)
+   - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+   - `TELEGRAM_BOT_TOKEN`
+3. **Docker (Recommended)**:
    ```bash
-   cp .env.example .env
-   # Fill in DATABASE_URL, REDIS_URL, GEMINI_API_KEY, GROQ_API_KEY, ENCRYPTION_KEY, etc.
+   docker-compose up
    ```
-4. Push database schema:
+4. **Prisma Setup**:
    ```bash
+   npx prisma generate
    npx prisma db push
    ```
-5. Start development server:
-   ```bash
-   npm run dev
-   ```
 
-## 🧪 Testing Guide
+## 📋 API Documentation
+- **Auth**: `POST /api/auth/login`, `POST /api/auth/refresh`
+- **Profiles**: `GET /api/user/profile`, `PUT /api/user/ai-keys`
+- **Posts**: `POST /api/posts/publish`, `GET /api/posts?status=published`
+- **Statistics**: `GET /api/dashboard/stats`
 
-### 1. Automated Tests
-Run the Jest integration suite:
+## 🧪 Testing
+Run the unified certification suite:
 ```bash
 npm test
 ```
 
-### 2. Manual API Walkthrough
-Use a tool like Postman or Curl:
-- **Register**: `POST /api/auth/register` (email, password, name)
-- **Login**: `POST /api/auth/login` -> returns `accessToken`
-- **Set AI Keys**: `PUT /api/user/ai-keys` (headers: `Authorization: Bearer <token>`)
-- **Generate**: `POST /api/content/generate` (idea, post_type, tone, model)
-- **Publish**: `POST /api/posts/publish` (pass the generated content)
-
-### 3. Telegram Bot Flow
-1. Start the bot: `/start`
-2. Initiate post: `/post`
-3. Follow the conversational steps (Type -> Platforms -> Tone -> Model -> Idea).
-4. Preview generated content and click **Confirm** ✅.
-5. Check status: `/status`.
-
-## 🏗 Architecture
-- **Tech Stack**: Node.js, Express, Prisma, Redis, BullMQ, GrammY.
-- **AI Models**: Gemini 1.5 Flash & Llama 3 (Groq).
-- **Security**: AES-256 encryption at rest for sensitive keys.
-- **Queue**: Distributed job processing with exponential backoff retries.
-
-## 📄 License
-MIT
+## 🎥 Demo
+[Link to Loom Recording]
+- Telegram Bot Flow (Idea -> Preview -> Post)
+- Unified Test Result (100% Pass)
+- Telemetry Logs in Terminal

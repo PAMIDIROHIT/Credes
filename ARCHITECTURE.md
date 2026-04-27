@@ -1,55 +1,31 @@
-# Postly Engine: System Architecture
+# System Architecture 🏛️
 
-Postly is a high-performance, multi-platform AI content publishing engine. This document outlines the technical design, data flow, and architectural decisions made to ensure production-grade reliability.
-
-## 🏗️ High-Level Overview
-The system follows a distributed, event-driven architecture using **BullMQ** for reliable background processing and **Redis** for stateful bot conversations.
-
+## Data Flow: Idea to Reality
 ```mermaid
 graph TD
-    User([User])
-    Bot[Telegram Bot]
-    API[Express.js Server]
-    AI[AI Engine - OpenAI/Anthropic/Gemini]
-    Queue[BullMQ - Redis]
-    Worker[Background Worker]
-    DB[(PostgreSQL - Prisma)]
-    
-    User <--> Bot
-    Bot <--> API
-    API <--> AI
-    API --> DB
-    API --> Queue
-    Queue --> Worker
-    Worker --> Platforms[Twitter / LinkedIn / IG]
-    Worker -- Update Status --> DB
+    User[(User/Bot)] -->|Idea| Bot[Telegram Bot]
+    Bot -->|Validate| API[Express API]
+    API -->|Prompt Builder| AI[AI Engine: GPT-4o/Claude]
+    AI -->|Drafts| API
+    API -->|Confirm| Queue[BullMQ / Redis]
+    Queue -->|Retry Backoff| Worker[Worker Thread]
+    Worker -->|AES Decrypt| Social[Platform APIs]
+    Worker -->|Update| DB[(PostgreSQL)]
 ```
 
-## 🧠 Core Components
+## Core Design Decisions
+1. **Redis Session Management**:
+   The Telegram bot maintains conversation state in Redis with a 30-minute expiry. This ensures the backend remains stateless while enabling a rich, multi-step UI flow (e.g., "Back" buttons).
+   
+2. **Partial Failure Strategy**:
+   Each platform (Twitter, LinkedIn, etc.) is queued as an **independent BullMQ job**. If Twitter fails, it enters a retry loop (1s -> 5s -> 25s) without affecting the success of the LinkedIn post.
 
-### 1. Conversational Bot (The Interface)
-- **State Management**: Built with `grammY`. Post state (platform selections, tone, etc.) is stored in **Upstash Redis** to ensure persistence across server restarts.
-- **Webhook Integration**: Configured for low-latency responsiveness in production.
+3. **Security & Encryption**:
+   Sensitive OAuth tokens and AI keys are encrypted at rest using `AES-256-GCM`. Decryption only happens in the isolated Worker thread milliseconds before the API call.
 
-### 2. AI Content Engine (The Brain)
-- **Multi-Model Intelligence**: Supports GPT-4o, Claude 3.5, and Gemini 2.5.
-- **Platform-Specific Rules**: Strict character limits and formatting (hashtags/emojis) are enforced via a centralized `PromptBuilder`.
+4. **Telemetry & Observability**:
+   We use a Proxy-based tracing system for Redis and a Prisma Extension for DB monitoring. This allows us to track performance bottlenecks in real-time without polluting the business logic.
 
-### 3. Publishing Pipeline (The Muscle)
-- **Resilient Worker**: A dedicated BullMQ worker handles the "Platform API" calls.
-- **Partial Failure Handling**: If one platform fails (e.g., LinkedIn API is down), only that specific job is retried, keeping other platform posts unaffected.
-- **Retry Policy**: Exponential backoff (1s → 5s → 25s) is enforced for failed publishing attempts.
-
-## 🔐 Security & Operations
-- **Encryption at Rest**: Social account OAuth tokens and AI keys are encrypted using **AES-256-CBC** before database storage.
-- **JWT Rotation**: Access tokens are short-lived, while Refresh tokens are stored in the database and rotated on every use to prevent reuse attacks.
-- **Database**: PostgreSQL (hosted on Supabase) serves as the source of truth for users, posts, and job statuses.
-
-## 🛠️ Tech Stack Decisions
-| Layer | Choice | Rationale |
-| :--- | :--- | :--- |
-| Runtime | Node.js (v24+) | Native ESM support and performance. |
-| Database | PostgreSQL | ACID compliance for transaction-heavy publishing. |
-| ORM | Prisma | Type-safe schema management and migrations. |
-| Queue | BullMQ + Redis | Industry standard for reliable, delayed, and retriable jobs. |
-| Auth | JWT | High-security stateless-friendly access with stateful refresh tokens. |
+## Schema Design
+- **Posts vs PlatformPosts**: One-to-many relationship allows for different statuses per platform for a single concept.
+- **SocialAccounts**: Modular design supporting multiple platform linking per user.

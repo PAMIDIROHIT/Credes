@@ -27,20 +27,36 @@ bot.use(async (ctx, next) => {
 });
 
 // Middlewares to ensure user is linked
-const checkAuth = async (ctx, next) => {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: ctx.from?.id.toString() },
-  });
-  if (!user && !ctx.message?.text?.startsWith('/start')) {
-    return ctx.reply("❌ Your Telegram account is not linked to Postly. Please link it via the dashboard or use `/start <link_token>`.");
-  }
-  ctx.dbUser = user;
-  await next();
-};
-
 bot.command('start', async (ctx) => {
-  await ctx.reply(`Welcome to Postly, ${ctx.from.first_name}! 🚀\n\nTo link your account, use:\n\`/link your_registered_email@example.com\`\n\nAfter linking, use /post to start creating content.`, { parse_mode: 'Markdown' });
+  logger.info(`[BOT] Handling /start for ${ctx.from.id}`);
+  await ctx.reply(`Welcome to Postly, ${ctx.from.first_name}! 🚀\n\nTo link your account, use:\n\`/link your_email@example.com\`\n\nRegistered already? Use /post to create content.`, { parse_mode: 'Markdown' });
 });
+
+bot.command('help', (ctx) => {
+  ctx.reply(`Postly Commands:\n/post - Start a new post flow\n/status - Show last 5 posts\n/accounts - List linked social accounts\n/help - Show this message`);
+});
+
+// Middlewares to ensure user is linked
+const checkAuth = async (ctx, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { telegramId: ctx.from?.id.toString() },
+    });
+    
+    if (!user) {
+      if (ctx.message?.text?.startsWith('/link') || ctx.message?.text?.startsWith('/start')) {
+        return await next();
+      }
+      return ctx.reply("❌ Account not linked. Please use `/link email@example.com` to connect your Postly account.", { parse_mode: 'Markdown' });
+    }
+    
+    ctx.dbUser = user;
+    await next();
+  } catch (err) {
+    logger.error("[BOT] Auth Middleware Error:", err);
+    await ctx.reply("⚠️ Bot is having trouble reaching the database. Please try again in 1 minute.");
+  }
+};
 
 bot.command('link', async (ctx) => {
   const email = ctx.match?.trim().toLowerCase();
@@ -75,10 +91,6 @@ bot.command('link', async (ctx) => {
         await ctx.reply("❌ Linking failed. Please try again later.");
     }
   }
-});
-
-bot.command('help', (ctx) => {
-  ctx.reply(`Postly Commands:\n/post - Start a new post flow\n/status - Show last 5 posts\n/accounts - List linked social accounts\n/help - Show this message`);
 });
 
 bot.command('post', checkAuth, async (ctx) => {
@@ -240,7 +252,19 @@ bot.on('callback_query:data', checkAuth, async (ctx) => {
       generated_content: session.generated,
     });
     session.step = 'IDLE';
-    await ctx.reply("Done! Your posts are in the queue. ✅");
+    await ctx.reply("✅ Done! Your posts are in the queue.\n\nUse `/status` to track their progress live!", { parse_mode: 'Markdown' });
+  }
+
+  if (data === 'edit_idea') {
+    session.step = 'ASK_IDEA';
+    const platLabels = (session.platforms || []).map(p => p.toUpperCase()).join(', ');
+    await ctx.editMessageText(`✏️ Editing idea for: [${platLabels}] via ${session.model}\n\nReady for your updated input ✍️`);
+  }
+
+  if (data === 'cancel_post' || data === 'cancel_post') {
+    session.step = 'IDLE';
+    await ctx.editMessageText("❌ Post creation cancelled.");
+    await ctx.reply("System reset. You can start a new post with /post whenever you're ready.");
   }
 
   await ctx.answerCallbackQuery();
@@ -281,6 +305,7 @@ bot.on('message:text', checkAuth, async (ctx) => {
 
       const keyboard = new InlineKeyboard()
         .text("Yes, Post Now ✅", "publish_now").row()
+        .text("Edit Idea ✏️", "edit_idea")
         .text("Cancel ❌", "cancel_post");
 
       await ctx.reply(preview, { parse_mode: "Markdown", reply_markup: keyboard });
@@ -290,6 +315,9 @@ bot.on('message:text', checkAuth, async (ctx) => {
       await ctx.reply("Failed to generate content. Please try /post again.");
       session.step = 'IDLE';
     }
+  } else if (!ctx.message.text.startsWith('/')) {
+    // Fallback for non-command text in IDLE
+    await ctx.reply("🤖 I'm ready! Use /post to start a new content flow, or /help for more commands.");
   }
 });
 

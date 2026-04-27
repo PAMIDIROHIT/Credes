@@ -43,8 +43,20 @@ export const generateContent = async (userId, data) => {
 
   logger.info(`Content generated for user ${userId} using ${model}`);
 
+  // 4. Force-filter out platforms the user didn't ask for (LLM hallucination safety grid)
+  const filteredResult = {};
+  for (const requestedPlat of platforms) {
+    const key = Object.keys(result).find(k => k.toLowerCase() === requestedPlat.toLowerCase() || (requestedPlat === 'twitter' && k.toLowerCase() === 'x'));
+    if (key && result[key]) {
+      filteredResult[requestedPlat] = result[key];
+    }
+  }
+
+  // Fallback to raw result if the filter stripped everything due to malformed keys.
+  const finalResult = Object.keys(filteredResult).length > 0 ? filteredResult : result;
+
   return {
-    generated: result,
+    generated: finalResult,
     model_used: model,
     timestamp: new Date(),
   };

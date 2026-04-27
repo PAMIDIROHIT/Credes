@@ -11,5 +11,6 @@ router.post('/schedule', auth, validate(publishPostSchema), postsController.publ
 router.get('/', auth, postsController.list);
 router.get('/:id', auth, postsController.getById);
 router.post('/:id/retry', auth, validate(retryPostSchema), postsController.retry);
+router.delete('/:id', auth, postsController.deleteById);
 
 export default router;
