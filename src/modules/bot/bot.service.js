@@ -270,6 +270,46 @@ bot.on('callback_query:data', checkAuth, async (ctx) => {
   await ctx.answerCallbackQuery();
 });
 
+bot.command('accounts', checkAuth, async (ctx) => {
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId: ctx.dbUser.id }
+  });
+
+  if (accounts.length === 0) {
+    return ctx.reply("🔌 You haven't linked any social accounts yet.\nUse the dashboard to link your Twitter or LinkedIn!");
+  }
+
+  let text = "🔌 *Your Linked Accounts*\n\n";
+  accounts.forEach(acc => {
+    text += `- *${acc.platform.toUpperCase()}*: ${acc.username || 'Linked'}\n`;
+  });
+  ctx.reply(text, { parse_mode: "Markdown" });
+});
+
+const statusHandler = async (ctx) => {
+  try {
+    const { posts } = await postsService.getPosts(ctx.dbUser.id, { limit: 5 });
+    if (posts.length === 0) return ctx.reply("📭 Queue is empty. Use /post to start!");
+
+    let text = "📊 *Post Status* (Latest 5)\n\n";
+    posts.forEach((p, i) => {
+      text += `${i + 1}. *[${p.postType.toUpperCase()}]* ${p.idea.substring(0, 25)}...\n`;
+      p.platformPosts?.forEach(pp => {
+        const icon = pp.status === 'published' ? '✅' : (pp.status === 'failed' ? '❌' : '⏳');
+        text += `   ${icon} ${pp.platform}: ${pp.status}\n`;
+      });
+      text += "\n";
+    });
+    ctx.reply(text, { parse_mode: "Markdown" });
+  } catch (e) {
+    logger.error("Status check failed:", e);
+    ctx.reply("❌ Failed to fetch queue status.");
+  }
+};
+
+bot.command('status', checkAuth, statusHandler);
+bot.command('queue', checkAuth, statusHandler);
+
 // Handle text input for Idea
 bot.on('message:text', checkAuth, async (ctx) => {
   const session = ctx.session;
@@ -321,45 +361,6 @@ bot.on('message:text', checkAuth, async (ctx) => {
   }
 });
 
-bot.command('accounts', checkAuth, async (ctx) => {
-  const accounts = await prisma.socialAccount.findMany({
-    where: { userId: ctx.dbUser.id }
-  });
-
-  if (accounts.length === 0) {
-    return ctx.reply("🔌 You haven't linked any social accounts yet.\nUse the dashboard to link your Twitter or LinkedIn!");
-  }
-
-  let text = "🔌 *Your Linked Accounts*\n\n";
-  accounts.forEach(acc => {
-    text += `- *${acc.platform.toUpperCase()}*: ${acc.username || 'Linked'}\n`;
-  });
-  ctx.reply(text, { parse_mode: "Markdown" });
-});
-
-const statusHandler = async (ctx) => {
-  try {
-    const { posts } = await postsService.getPosts(ctx.dbUser.id, { limit: 5 });
-    if (posts.length === 0) return ctx.reply("📭 Queue is empty. Use /post to start!");
-
-    let text = "📊 *Post Status* (Latest 5)\n\n";
-    posts.forEach((p, i) => {
-      text += `${i + 1}. *[${p.postType.toUpperCase()}]* ${p.idea.substring(0, 25)}...\n`;
-      p.platformPosts?.forEach(pp => {
-        const icon = pp.status === 'published' ? '✅' : (pp.status === 'failed' ? '❌' : '⏳');
-        text += `   ${icon} ${pp.platform}: ${pp.status}\n`;
-      });
-      text += "\n";
-    });
-    ctx.reply(text, { parse_mode: "Markdown" });
-  } catch (e) {
-    logger.error("Status check failed:", e);
-    ctx.reply("❌ Failed to fetch queue status.");
-  }
-};
-
-bot.command('status', checkAuth, statusHandler);
-bot.command('queue', checkAuth, statusHandler);
 
 bot.catch((err) => {
   logger.error('Bot Error:', err);
