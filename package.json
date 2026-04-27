@@ -1,7 +1,7 @@
 {
-  "name": "credes",
+  "name": "postly-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Postly — a multi-platform AI content publishing engine",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
@@ -21,32 +21,28 @@
   },
   "homepage": "https://github.com/PAMIDIROHIT/Credes#readme",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.91.1",
     "@google/generative-ai": "^0.24.1",
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.104.1",
-    "@upstash/redis": "^1.37.0",
-    "bcrypt": "^6.0.0",
-    "bullmq": "^5.76.2",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "grammy": "^1.42.0",
-    "groq-sdk": "^1.1.2",
-    "helmet": "^8.1.0",
-    "ioredis": "^5.10.1",
-    "jsonwebtoken": "^9.0.3",
-    "node-telegram-bot-api": "^0.67.0",
-    "openai": "^6.34.0",
-    "uuid": "^14.0.0",
-    "zod": "^4.3.6"
+    "bcrypt": "^5.1.1",
+    "bullmq": "^5.7.0",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "grammy": "^1.23.0",
+    "groq-sdk": "^0.3.3",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",
     "eslint": "^10.2.1",
+    "jest": "^30.3.0",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.3",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "supertest": "^7.2.2"
   }
 }

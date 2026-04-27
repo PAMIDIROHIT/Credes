@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,79 +8,89 @@ datasource db {
 }
 
 model User {
-  id               String   @id @default(uuid())
-  name             String
-  email            String   @unique
-  password_hash    String
-  bio              String?
-  default_tone     String?  @default("professional")
-  default_language String?  @default("en")
-  refresh_token    String?  @db.Text
-  created_at       DateTime @default(now())
-
-  // Relations
-  social_accounts SocialAccount[]
-  ai_keys         AiKey?
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  bio             String?
+  defaultTone     String    @default("professional")
+  defaultLanguage String    @default("en")
+  createdAt       DateTime  @default(now())
+  refreshTokens   RefreshToken[]
+  socialAccounts  SocialAccount[]
+  aiKeys          AiKeys?
   posts           Post[]
 
   @@map("users")
 }
 
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
 model SocialAccount {
-  id                 String   @id @default(uuid())
-  user_id            String
-  platform           String   // twitter, linkedin, instagram, threads
-  access_token_enc   String
-  refresh_token_enc  String?
-  handle             String?
-  connected_at       DateTime @default(now())
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  platform         String   // twitter | linkedin | instagram | threads
+  accessTokenEnc   String
+  refreshTokenEnc  String?
+  handle           String
+  connectedAt      DateTime @default(now())
 
-  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
+  @@index([userId])
   @@map("social_accounts")
 }
 
-model AiKey {
-  id                 String   @id @default(uuid())
-  user_id            String   @unique
-  openai_key_enc     String?
-  anthropic_key_enc  String?
-  updated_at         DateTime @updatedAt
-
-  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+model AiKeys {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  geminiKeyEnc     String?
+  groqKeyEnc       String?
+  updatedAt        DateTime @updatedAt
 
   @@map("ai_keys")
 }
 
 model Post {
-  id               String   @id @default(uuid())
-  user_id          String
-  idea             String   // max 500 chars (handled in app validation)
-  post_type        String   // announcement, thread, story, etc.
-  tone             String
-  language         String   @default("en")
-  model_used       String   // openai or anthropic
-  created_at       DateTime @default(now())
-  publish_at       DateTime?
-  status           String   @default("queued") // queued, processing, published, failed, cancelled
+  id             String         @id @default(uuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id])
+  idea           String
+  postType       String
+  tone           String
+  language       String
+  modelUsed      String
+  status         String         @default("queued")
+  publishAt      DateTime?
+  createdAt      DateTime       @default(now())
+  platformPosts  PlatformPost[]
 
-  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  platform_posts   PlatformPost[]
-
+  @@index([userId])
   @@map("posts")
 }
 
 model PlatformPost {
-  id               String   @id @default(uuid())
-  post_id          String
-  platform         String   // twitter, linkedin, instagram, threads
-  content          String   @db.Text
-  status           String   @default("queued") // queued, processing, published, failed, cancelled
-  published_at     DateTime?
-  error_message    String?  @db.Text
-  attempts         Int      @default(0)
+  id           String   @id @default(uuid())
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id])
+  platform     String
+  content      String
+  status       String   @default("queued")  // queued|processing|published|failed|cancelled
+  publishedAt  DateTime?
+  errorMessage String?
+  attempts     Int      @default(0)
 
-  post             Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
-
+  @@index([postId])
   @@map("platform_posts")
 }
