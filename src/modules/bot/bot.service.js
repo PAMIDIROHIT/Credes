@@ -27,14 +27,30 @@ const checkAuth = async (ctx, next) => {
 };
 
 bot.command('start', async (ctx) => {
-  const payload = ctx.match; // token if any
-  if (payload) {
-    // Logic to link user via token
-    // In actual app, we would verify a JWT or unique token from dashboard
-    await ctx.reply("🔗 Linking your account... (Implementation pending logic)");
+  await ctx.reply(`Welcome to Postly, ${ctx.from.first_name}! 🚀\n\nTo link your account, use:\n\`/link your_registered_email@example.com\`\n\nAfter linking, use /post to start creating content.`, { parse_mode: 'Markdown' });
+});
+
+bot.command('link', async (ctx) => {
+  const email = ctx.match;
+  if (!email) return ctx.reply("❌ Please provide your email: `/link email@example.com`", { parse_mode: 'Markdown' });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return ctx.reply("❌ No user found with that email. Please register via the API first.");
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        telegramId: ctx.from.id.toString(),
+        telegramHandle: ctx.from.username || null 
+      },
+    });
+
+    await ctx.reply("✅ Success! Your Telegram account is now linked to Postly. You can now use /post.");
+  } catch (error) {
+    logger.error('Linking failed:', error);
+    await ctx.reply("❌ Linking failed. Please try again later.");
   }
-  
-  await ctx.reply(`Welcome to Postly, ${ctx.from.first_name}! 🚀\nUse /post to start creating content.`);
 });
 
 bot.command('help', (ctx) => {

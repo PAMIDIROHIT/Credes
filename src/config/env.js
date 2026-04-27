@@ -15,6 +15,10 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string(),
   TELEGRAM_WEBHOOK_URL: z.string().optional(),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_ACCESS_KEY: z.string().optional(),
+  S3_SECRET_KEY: z.string().optional(),
+  S3_REGION: z.string().optional().default('ap-south-1'),
 });
 
 const parsed = envSchema.safeParse(process.env);
