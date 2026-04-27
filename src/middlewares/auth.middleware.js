@@ -1,16 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'fallback_access_secret';
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
-
-export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,7 +13,7 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as { id: string; email: string };
+    const decoded = jwt.verify(token, ACCESS_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
