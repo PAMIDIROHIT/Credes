@@ -1,8 +1,6 @@
-import { Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../utils/prisma.util';
-import { AuthenticatedRequest } from '../middlewares/auth.middleware';
-import { encrypt } from '../utils/encryption.util';
+import { prisma } from '../utils/prisma.util.js';
+import { encrypt } from '../utils/encryption.util.js';
 
 const profileUpdateSchema = z.object({
   name: z.string().optional(),
@@ -23,33 +21,24 @@ const aiKeysSchema = z.object({
   anthropic_key: z.string().optional(),
 });
 
-// Profile Manangement
-
-export const getProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user?.id },
       select: { id: true, email: true, name: true, bio: true, default_tone: true, default_language: true, created_at: true },
     });
 
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
+    if (!user) return res.status(404).json({ error: 'User not found' });
     res.status(200).json({ data: user });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const updateProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const updateProfile = async (req, res) => {
   try {
     const pars = profileUpdateSchema.safeParse(req.body);
-    if (!pars.success) {
-      res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
-      return;
-    }
+    if (!pars.success) return res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user?.id },
@@ -63,25 +52,19 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response): P
   }
 };
 
-// Social Accounts Management
-
-export const addSocialAccount = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const addSocialAccount = async (req, res) => {
   try {
     const pars = socialAccountSchema.safeParse(req.body);
-    if (!pars.success) {
-      res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
-      return;
-    }
+    if (!pars.success) return res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
 
     const { platform, access_token, refresh_token, handle } = pars.data;
 
-    // Optional checking to see if already linked
     const existing = await prisma.socialAccount.findFirst({
         where: { user_id: req.user?.id, platform }
     });
 
     const accountData = {
-        user_id: req.user!.id,
+        user_id: req.user.id,
         platform,
         access_token_enc: encrypt(access_token),
         refresh_token_enc: refresh_token ? encrypt(refresh_token) : null,
@@ -89,13 +72,11 @@ export const addSocialAccount = async (req: AuthenticatedRequest, res: Response)
     };
 
     if (existing) {
-        // Update existing instead of creating duplicate
         const updated = await prisma.socialAccount.update({
             where: { id: existing.id },
             data: accountData
         });
-        res.status(200).json({ data: { id: updated.id, platform: updated.platform, handle: updated.handle }, message: 'Social account updated' });
-        return;
+        return res.status(200).json({ data: { id: updated.id, platform: updated.platform, handle: updated.handle }, message: 'Social account updated' });
     }
 
     const newAccount = await prisma.socialAccount.create({ data: accountData });
@@ -105,7 +86,7 @@ export const addSocialAccount = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
-export const listSocialAccounts = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const listSocialAccounts = async (req, res) => {
   try {
     const accounts = await prisma.socialAccount.findMany({
       where: { user_id: req.user?.id },
@@ -117,15 +98,12 @@ export const listSocialAccounts = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
-export const removeSocialAccount = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const removeSocialAccount = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Ensure it belongs to user
     const account = await prisma.socialAccount.findUnique({ where: { id } });
     if (!account || account.user_id !== req.user?.id) {
-      res.status(404).json({ error: 'Account not found or unauthorized' });
-      return;
+      return res.status(404).json({ error: 'Account not found or unauthorized' });
     }
 
     await prisma.socialAccount.delete({ where: { id } });
@@ -135,24 +113,18 @@ export const removeSocialAccount = async (req: AuthenticatedRequest, res: Respon
   }
 };
 
-// AI Keys Management
-
-export const updateAiKeys = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const updateAiKeys = async (req, res) => {
   try {
     const pars = aiKeysSchema.safeParse(req.body);
-    if (!pars.success) {
-      res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
-      return;
-    }
+    if (!pars.success) return res.status(400).json({ error: 'Validation failed', details: pars.error.format() });
 
-    const { openai_key, anthropic_key } = pars.data;
-    
+    const { openai_key, anthropic_key } = pars.data; // Mapped to gemini/groq later or retained as requested
     const existing = await prisma.aiKey.findUnique({
         where: { user_id: req.user?.id }
     });
 
     const aiKeysData = {
-        user_id: req.user!.id,
+        user_id: req.user.id,
         openai_key_enc: openai_key ? encrypt(openai_key) : existing?.openai_key_enc,
         anthropic_key_enc: anthropic_key ? encrypt(anthropic_key) : existing?.anthropic_key_enc,
     };
