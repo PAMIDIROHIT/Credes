@@ -1,22 +1,17 @@
-# AI Usage Disclosure (Credes TechLabs)
+# AI Usage & Prompt Strategy
 
-## Tools Used:
-- **Assistant:** GitHub Copilot / Gemini 3.1 Pro (via VS Code)
-- **Role:** Scaffolding automation, ES modules conversion, boilerplate optimization.
+## Models Used
+- **Gemini 1.5 Flash**: Default model for speed and high context window.
+- **Llama 3 (70B) via Groq**: Alternative high-performance model for witty and professional tones.
 
-## Specific Implementations Assisted by AI:
-1. **TypeScript to JavaScript Switch**:
-   * *Prompt/Task:* Convert a large TypeScript API scaffolding set directly to plain JavaScript standard ES modules natively mapped without build tools.
-   * *Validation:* Reviewed `import` statements ensuring `.js` extensions were enforced, replaced custom TS interface types with standard Express syntax, and tested execution.
-2. **AI Engines Configuration (Groq / Gemini)**:
-   * *Task:* Implement backend handler mapping requests to Gemini or Groq SDKs replacing the fallback mock structures in original drafts.
-   * *Validation:* Added `Groq` and `@google/generative-ai` packages, ensuring error handling matched assignment expectations natively.
-3. **Queue Mechanism (BullMQ)**:
-   * *Task:* Implement queue processing with exponential fallback delays mapping to database `status` fields.
-   * *Validation:* Validated the Redis connection string fallback and simulated platform hooks in `publisher.js`.
-4. **Telegram Flow (Grammy)**:
-   * *Task:* Map stateful steps required by the exact assignment (`Start -> Type -> Platforms -> Tone -> Model -> Idea -> Preview`).
-   * *Validation:* Managed context storage directly into Upstash Redis via `ioredis` utilizing `ctx.chat.id`.
+## Prompt Engineering
+We use a **System Instruction Pattern** that enforces strict platform constraints:
+- **Twitter**: 280-char limit, punchy openings.
+- **LinkedIn**: Long-form (800+ chars), professional structuring.
+- **Instagram**: Emoji-rich with a dedicated hashtag cluster.
+- **Threads**: Conversational and engaging.
 
-### Policy Note
-This project adheres to the Credes usage policy by ensuring no blind code pastes exist. AI acted as a force multiplier strictly for generating repetitive configuration structures while the logic architecture mapping (Supabase, Upstash Redis, JWT lifecycle, AES token encryption) was manually requested and actively validated prior to git commits.
+## Key Management
+- Users can provide their own API keys via `PUT /api/user/ai-keys`.
+- These are encrypted via AES-256 and decrypted on-the-fly.
+- Fallback to platform-level keys occurs if user keys are absent.

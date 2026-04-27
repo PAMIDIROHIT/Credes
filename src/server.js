@@ -2,25 +2,25 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import app from './app.js';
-import { bot } from './bot/telegram.js';
-import { initWorker } from './queue/publisher.js';
+import { env } from './config/env.js';
+import { logger } from './utils/logger.js';
+import { bot } from './modules/bot/bot.service.js';
+import { setupWorker } from './queue/worker.js';
 
-const PORT = process.env.PORT || 3000;
+const PORT = env.PORT || 3000;
 
-// Initialize background worker for BullMQ
-initWorker();
+// Start BullMQ Worker
+setupWorker();
 
-// Start the Grammy Bot connection (Long Polling for Dev)
-if (process.env.TELEGRAM_BOT_TOKEN) {
-    bot.start({
-        onStart: (botInfo) => {
-            console.log(`Telegram Bot @${botInfo.username} started successfully.`);
-        }
-    }).catch(err => console.error("Telegram bot failed to start:", err));
+// Start Telegram Bot
+if (env.TELEGRAM_BOT_TOKEN) {
+  bot.start({
+    onStart: (botInfo) => logger.info(`Telegram Bot @${botInfo.username} is running`),
+  }).catch(err => logger.error("Telegram bot failed to start:", err));
 } else {
-    console.warn("TELEGRAM_BOT_TOKEN not found. Bot is disabled.");
+  logger.warn("TELEGRAM_BOT_TOKEN not found. Bot is disabled.");
 }
 
 app.listen(PORT, () => {
-  console.log('Server is running on port ' + PORT);
+  logger.info(`Server is running on port ${PORT}`);
 });

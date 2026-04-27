@@ -3,9 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/user/user.routes.js';
-// import contentRoutes from './modules/content/content.routes.js';
-// import postRoutes from './modules/posts/posts.routes.js';
-// import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+import contentRoutes from './modules/content/content.routes.js';
+import postRoutes from './modules/posts/posts.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import { errorHandler } from './middlewares/errorHandler.middleware.js';
 
 const app = express();
@@ -20,9 +20,9 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-// app.use('/api/content', contentRoutes);
-// app.use('/api/posts', postRoutes);
-// app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 
