@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { redis } from './redis.js';
+import redis from './redis.js';
 
 const defaultJobOptions = {
   removeOnComplete: true,

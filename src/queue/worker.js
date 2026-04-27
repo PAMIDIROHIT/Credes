@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { redis } from '../config/redis.js';
+import redis from '../config/redis.js';
 import prisma from '../config/db.js';
 import { decrypt } from '../utils/crypto.util.js';
 import { getPublisher } from '../publishers/index.js';
