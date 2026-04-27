@@ -1,23 +1,32 @@
-import jwt from 'jsonwebtoken';
+import { verifyAccessToken } from '../utils/jwt.util.js';
+import { sendError } from '../utils/response.util.js';
+import prisma from '../config/db.js';
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'fallback_access_secret';
-
-export const authenticateJWT = (req, res, next) => {
+export const auth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
-    return;
+    return sendError(res, 401, 'Unauthorized', 'Missing or invalid token');
   }
 
   const token = authHeader.split(' ')[1];
+  const decoded = verifyAccessToken(token);
+
+  if (!decoded) {
+    return sendError(res, 401, 'Unauthorized', 'Token expired or invalid');
+  }
 
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET);
-    req.user = decoded;
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+    });
+
+    if (!user) {
+      return sendError(res, 401, 'Unauthorized', 'User not found');
+    }
+
+    req.user = user;
     next();
   } catch (error) {
-    res.status(403).json({ error: 'Forbidden: Invalid or expired token' });
-    return;
+    next(error);
   }
 };
