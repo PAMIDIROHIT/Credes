@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/PAMIDIROHIT/Credes#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@google/generative-ai": "^0.24.1",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.7.0",
@@ -34,6 +35,8 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^6.34.0",
+    "twitter-api-v2": "^1.29.0",
     "uuid": "^9.0.1",
     "zod": "^3.23.8"
   },

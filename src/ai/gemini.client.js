@@ -14,11 +14,14 @@ export const generateWithGemini = async (prompt, userApiKey = null) => {
     const response = await result.response;
     const text = response.text();
     
-    // Attempt to parse JSON from the response if the prompt asked for it
+    // 2026 Robust Parsing
     try {
-      return JSON.parse(text.replace(/```json|```/g, '').trim());
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const cleanedText = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, '').trim();
+      return JSON.parse(cleanedText);
     } catch (e) {
-      return text;
+      logger.error('Gemini JSON Parse Failed. Raw:', text);
+      throw new Error('AI response was not in JSON format. Please try again.');
     }
   } catch (error) {
     logger.error('Gemini generation failed:', error);

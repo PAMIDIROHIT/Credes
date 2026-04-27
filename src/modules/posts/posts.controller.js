@@ -19,6 +19,15 @@ export const list = async (req, res, next) => {
   }
 };
 
+export const getById = async (req, res, next) => {
+  try {
+    const post = await postsService.getPostById(req.user.id, req.params.id);
+    return sendSuccess(res, post, 'Post retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const retry = async (req, res, next) => {
   try {
     const result = await postsService.retryFailedPost(req.user.id, req.params.id);

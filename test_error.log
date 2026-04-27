@@ -1,0 +1,42 @@
+(node:10116) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13056) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ FAIL  tests/integration/posts.test.js (90.243 s)
+
+
+  ΓùÅ Test suite failed to run
+
+    Stream isn't writeable and enableOfflineQueue options is false
+
+      21 |   afterAll(async () => {
+      22 |     await prisma.$disconnect();
+    > 23 |     await redis.quit();
+         |                 ^
+      24 |   });
+      25 | });
+      26 |
+
+      at EventEmitter.sendCommand (node_modules/ioredis/built/Redis.js:365:32)
+      at EventEmitter.quit (node_modules/ioredis/built/utils/Commander.js:90:25)
+      at Object.<anonymous> (tests/integration/posts.test.js:23:17)
+
+
+<--- Last few GCs --->
+
+[16544:0000020D77DA1000]    65616 ms: Scavenge (interleaved) 31.3 (32.5) -> 30.2 (53.8) MB, pooled: 0 MB, 3.04 / 0.01 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[16544:0000020D77DA1000]    70975 ms: Mark-Compact 40.3 (55.6) -> 31.5 (57.6) MB, pooled: 0 MB, 6.15 / 0.17 ms  (+ 0.2 ms in 9 steps since start of marking, biggest step 0.1 ms, walltime since start of marking 22 ms) (average mu = 1.000, current mu = 1.00
+ FAIL  tests/integration/auth.test.js
+  ΓùÅ Test suite failed to run
+
+    Jest worker ran out of memory and crashed
+
+      at ChildProcessWorker._onExit (node_modules/jest-worker/build/index.js:928:26)
+
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+Test Suites: 2 failed, 2 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        170.065 s
+Ran all test suites matching tests/integration/auth.test.js|tests/integration/posts.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

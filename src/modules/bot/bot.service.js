@@ -14,6 +14,18 @@ bot.use(session({
   storage: redisStorage,
 }));
 
+// Global Trace Middleware
+bot.use(async (ctx, next) => {
+  logger.info(`[BOT] Received update_id: ${ctx.update.update_id} | Type: ${ctx.update.message ? 'Message' : 'Other'}`);
+  if (ctx.message) logger.info(`[BOT] Text: ${ctx.message.text}`);
+  try {
+    await next();
+  } catch (err) {
+    logger.error("[BOT] Middleware Error:", err);
+    throw err;
+  }
+});
+
 // Middlewares to ensure user is linked
 const checkAuth = async (ctx, next) => {
   const user = await prisma.user.findUnique({
@@ -31,11 +43,16 @@ bot.command('start', async (ctx) => {
 });
 
 bot.command('link', async (ctx) => {
-  const email = ctx.match;
+  const email = ctx.match?.trim().toLowerCase();
+  logger.info(`Bot link attempt for email: [${email}]`);
   if (!email) return ctx.reply("❌ Please provide your email: `/link email@example.com`", { parse_mode: 'Markdown' });
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } }).catch(e => {
+        logger.error("Database error during findUnique:", e.message);
+        throw new Error("DATABASE_UNREACHABLE");
+    });
+
     if (!user) return ctx.reply("❌ No user found with that email. Please register via the API first.");
 
     await prisma.user.update({
@@ -44,12 +61,19 @@ bot.command('link', async (ctx) => {
         telegramId: ctx.from.id.toString(),
         telegramHandle: ctx.from.username || null 
       },
+    }).catch(e => {
+        logger.error("Database error during update:", e.message);
+        throw new Error("DATABASE_UPDATE_FAILED");
     });
 
     await ctx.reply("✅ Success! Your Telegram account is now linked to Postly. You can now use /post.");
   } catch (error) {
-    logger.error('Linking failed:', error);
-    await ctx.reply("❌ Linking failed. Please try again later.");
+    if (error.message === "DATABASE_UNREACHABLE" || error.message === "DATABASE_UPDATE_FAILED") {
+        await ctx.reply("❌ Database connection issue. I've logged this for the developers. Please try again in a few minutes.");
+    } else {
+        logger.error('Linking failed:', error);
+        await ctx.reply("❌ Linking failed. Please try again later.");
+    }
   }
 });
 
@@ -59,6 +83,7 @@ bot.command('help', (ctx) => {
 
 bot.command('post', checkAuth, async (ctx) => {
   ctx.session.step = 'ASK_TYPE';
+  ctx.session.platforms = []; // Reset platforms for new post
   const keyboard = new InlineKeyboard()
     .text("Announcement", "type_announcement").text("Thread", "type_thread").row()
     .text("Story", "type_story").text("Promotional", "type_promotional").row()
@@ -75,47 +100,137 @@ bot.on('callback_query:data', checkAuth, async (ctx) => {
   if (data.startsWith('type_')) {
     session.postType = data.replace('type_', '');
     session.step = 'ASK_PLATFORMS';
+    const status = `📝 Type: *${session.postType.toUpperCase()}*`;
     const keyboard = new InlineKeyboard()
       .text("Twitter", "plat_twitter").text("LinkedIn", "plat_linkedin").row()
       .text("Instagram", "plat_instagram").text("Threads", "plat_threads").row()
+      .text("⬅️ Back", "nav_back_to_type")
       .text("✅ Done Selecting", "plat_done");
-    await ctx.editMessageText("Which platforms should I post to? (Select multiple, then click Done)", { reply_markup: keyboard });
+    await ctx.editMessageText(`${status}\n\nWhich platforms should I post to? (Select multiple, then click Done)`, { 
+      reply_markup: keyboard,
+      parse_mode: "Markdown"
+    });
+  }
+
+  if (data === 'nav_back_to_type') {
+    session.step = 'ASK_TYPE';
+    session.platforms = [];
+    const keyboard = new InlineKeyboard()
+      .text("Announcement", "type_announcement").text("Thread", "type_thread").row()
+      .text("Story", "type_story").text("Promotional", "type_promotional").row()
+      .text("Educational", "type_educational").text("Opinion", "type_opinion");
+    await ctx.editMessageText("Hey 👋 What type of post is this?", { reply_markup: keyboard });
+  }
+
+  if (data === 'nav_back_to_platforms') {
+    session.step = 'ASK_PLATFORMS';
+    const status = `📝 Type: *${session.postType.toUpperCase()}*`;
+    const keyboard = new InlineKeyboard()
+      .text(session.platforms.includes("twitter") ? "Twitter ✅" : "Twitter", "plat_twitter")
+      .text(session.platforms.includes("linkedin") ? "LinkedIn ✅" : "LinkedIn", "plat_linkedin").row()
+      .text(session.platforms.includes("instagram") ? "Instagram ✅" : "Instagram", "plat_instagram")
+      .text(session.platforms.includes("threads") ? "Threads ✅" : "Threads", "plat_threads").row()
+      .text("⬅️ Back", "nav_back_to_type")
+      .text("✅ Done Selecting", "plat_done");
+    await ctx.editMessageText(`${status}\n\nWhich platforms should I post to? (Select multiple, then click Done)`, { 
+      reply_markup: keyboard,
+      parse_mode: "Markdown"
+    });
+  }
+
+  if (data === 'nav_back_to_tone') {
+    session.step = 'ASK_TONE';
+    const status = `📝 Type: *${session.postType.toUpperCase()}*\n🛰️ Platforms: *${session.platforms.map(p => p.toUpperCase()).join(', ')}*`;
+    const keyboard = new InlineKeyboard()
+      .text("Professional", "tone_professional").text("Casual", "tone_casual").row()
+      .text("Witty", "tone_witty").text("Authoritative", "tone_authoritative").row()
+      .text("Friendly", "tone_friendly").row()
+      .text("⬅️ Back", "nav_back_to_platforms");
+    await ctx.editMessageText(`${status}\n\nNow, what **tone** should the content have?`, { reply_markup: keyboard, parse_mode: "Markdown" });
+  }
+
+  if (data === 'nav_back_to_model') {
+    session.step = 'ASK_MODEL';
+    const status = `📝 Type: *${session.postType.toUpperCase()}*\n🛰️ Platforms: *${session.platforms.map(p => p.toUpperCase()).join(', ')}*\n🎭 Tone: *${session.tone.toUpperCase()}*`;
+    const keyboard = new InlineKeyboard()
+      .text("GPT-4o (OpenAI)", "model_openai").text("Claude 3.5 (Anthropic)", "model_anthropic").row()
+      .text("Gemini 1.5 Flash", "model_gemini").text("Llama 3.3 (Groq)", "model_groq").row()
+      .text("⬅️ Back", "nav_back_to_tone");
+    await ctx.editMessageText(`${status}\n\nWhich AI model do you want to use?`, { 
+      reply_markup: keyboard,
+      parse_mode: "Markdown"
+    });
   }
 
   if (data.startsWith('plat_')) {
+    await ctx.answerCallbackQuery().catch(() => {}); // Immediate feedback
     const plat = data.replace('plat_', '');
+    
     if (plat === 'done') {
-      if (session.platforms.length === 0) return ctx.answerCallbackQuery("Select at least one platform");
+      if (!session.platforms || session.platforms.length === 0) {
+        return ctx.answerCallbackQuery({
+          text: "⚠️ Please select at least one platform to proceed.",
+          show_alert: true
+        });
+      }
+      
       session.step = 'ASK_TONE';
+      const status = `📝 Type: *${session.postType.toUpperCase()}*\n🛰️ Platforms: *${session.platforms.map(p => p.toUpperCase()).join(', ')}*`;
       const keyboard = new InlineKeyboard()
         .text("Professional", "tone_professional").text("Casual", "tone_casual").row()
         .text("Witty", "tone_witty").text("Authoritative", "tone_authoritative").row()
-        .text("Friendly", "tone_friendly");
-      await ctx.editMessageText("What tone should the content have?", { reply_markup: keyboard });
+        .text("Friendly", "tone_friendly").row()
+        .text("⬅️ Back", "nav_back_to_platforms");
+      await ctx.editMessageText(`${status}\n\nNow, what **tone** should the content have?`, { reply_markup: keyboard, parse_mode: "Markdown" });
     } else {
-      if (!session.platforms.includes(plat)) {
-        session.platforms.push(plat);
-        await ctx.answerCallbackQuery(`Added ${plat}`);
+      // Toggle platform
+      if (!session.platforms) session.platforms = [];
+      const platId = plat.toLowerCase();
+      if (!session.platforms.includes(platId)) {
+        session.platforms.push(platId);
       } else {
-        session.platforms = session.platforms.filter(p => p !== plat);
-        await ctx.answerCallbackQuery(`Removed ${plat}`);
+        session.platforms = session.platforms.filter(p => p !== platId);
       }
+      
+      const getLabel = (id, name) => session.platforms.includes(id) ? `${name} ✅` : name;
+      const keyboard = new InlineKeyboard()
+        .text(getLabel("twitter", "Twitter"), "plat_twitter").text(getLabel("linkedin", "LinkedIn"), "plat_linkedin").row()
+        .text(getLabel("instagram", "Instagram"), "plat_instagram").text(getLabel("threads", "Threads"), "plat_threads").row()
+        .text("⬅️ Back", "nav_back_to_type")
+        .text("✅ Done Selecting", "plat_done");
+      
+      const status = `📝 Type: *${session.postType.toUpperCase()}*`;
+      await ctx.editMessageText(`${status}\n\nWhich platforms should I post to? (Select multiple, then click Done)`, { 
+        reply_markup: keyboard,
+        parse_mode: "Markdown"
+      }).catch(e => {
+        // Ignored if text unchanged
+      });
     }
   }
 
   if (data.startsWith('tone_')) {
     session.tone = data.replace('tone_', '');
     session.step = 'ASK_MODEL';
+    const status = `📝 Type: *${session.postType.toUpperCase()}*\n🛰️ Platforms: *${session.platforms.map(p => p.toUpperCase()).join(', ')}*\n🎭 Tone: *${session.tone.toUpperCase()}*`;
     const keyboard = new InlineKeyboard()
-      .text("Gemini 1.5 Flash", "model_gemini").row()
-      .text("Llama 3 (Groq)", "model_groq");
-    await ctx.editMessageText("Which AI model do you want to use?", { reply_markup: keyboard });
+      .text("GPT-4o (OpenAI)", "model_openai").text("Claude 3.5 (Anthropic)", "model_anthropic").row()
+      .text("Gemini 1.5 Flash", "model_gemini").text("Llama 3.3 (Groq)", "model_groq").row()
+      .text("⬅️ Back", "nav_back_to_tone");
+    await ctx.editMessageText(`${status}\n\nWhich AI model do you want to use?`, { 
+      reply_markup: keyboard,
+      parse_mode: "Markdown"
+    });
   }
 
   if (data.startsWith('model_')) {
     session.model = data.replace('model_', '');
     session.step = 'ASK_IDEA';
-    await ctx.editMessageText("Tell me the idea or core message (Max 500 characters). Ready for your input ✍️");
+    const platLabels = (session.platforms || []).map(p => p.toUpperCase()).join(', ');
+    const keyboard = new InlineKeyboard()
+      .text("⬅️ Back to Model", "nav_back_to_model");
+    await ctx.editMessageText(`✅ Config: [${platLabels}] via ${session.model}`, { reply_markup: keyboard });
+    await ctx.reply(`Tell me the idea or core message (Max 500 characters). Ready for your input ✍️`, { parse_mode: 'Markdown' });
   }
 
   if (data === 'publish_now') {
@@ -151,12 +266,17 @@ bot.on('message:text', checkAuth, async (ctx) => {
       };
       
       const result = await contentService.generateContent(ctx.dbUser.id, params);
-      session.generated = result.generated;
-      session.params = { ...params, model_used: result.model_used };
+      
+      // AI schema adaptation: handle both wrapped and unwrapped results
+      const generated = result.generated || result;
+      session.generated = generated;
+      session.params = { ...params, model_used: result.model_used || params.model };
 
       let preview = "📚 *Post Preview*\n\n";
-      for (const [plat, data] of Object.entries(result.generated)) {
-        preview += `*${plat.toUpperCase()}* (${data.char_count} chars):\n${data.content}\n\n`;
+      for (const [plat, data] of Object.entries(generated)) {
+        if (typeof data === 'object' && data.content) {
+          preview += `*${plat.toUpperCase()}* (${data.char_count || data.content.length} chars):\n${data.content}\n\n`;
+        }
       }
 
       const keyboard = new InlineKeyboard()
@@ -173,14 +293,45 @@ bot.on('message:text', checkAuth, async (ctx) => {
   }
 });
 
-bot.command('status', checkAuth, async (ctx) => {
-  const stats = await postsService.getPosts(ctx.dbUser.id, { limit: 5 });
-  let text = "📊 *Your Last 5 Posts*\n\n";
-  stats.posts.forEach((p, i) => {
-    text += `${i + 1}. [${p.postType}] ${p.idea.substring(0, 30)}... - *${p.status}*\n`;
+bot.command('accounts', checkAuth, async (ctx) => {
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId: ctx.dbUser.id }
+  });
+
+  if (accounts.length === 0) {
+    return ctx.reply("🔌 You haven't linked any social accounts yet.\nUse the dashboard to link your Twitter or LinkedIn!");
+  }
+
+  let text = "🔌 *Your Linked Accounts*\n\n";
+  accounts.forEach(acc => {
+    text += `- *${acc.platform.toUpperCase()}*: ${acc.username || 'Linked'}\n`;
   });
   ctx.reply(text, { parse_mode: "Markdown" });
 });
+
+const statusHandler = async (ctx) => {
+  try {
+    const { posts } = await postsService.getPosts(ctx.dbUser.id, { limit: 5 });
+    if (posts.length === 0) return ctx.reply("📭 Queue is empty. Use /post to start!");
+
+    let text = "📊 *Post Status* (Latest 5)\n\n";
+    posts.forEach((p, i) => {
+      text += `${i + 1}. *[${p.postType.toUpperCase()}]* ${p.idea.substring(0, 25)}...\n`;
+      p.platformPosts?.forEach(pp => {
+        const icon = pp.status === 'published' ? '✅' : (pp.status === 'failed' ? '❌' : '⏳');
+        text += `   ${icon} ${pp.platform}: ${pp.status}\n`;
+      });
+      text += "\n";
+    });
+    ctx.reply(text, { parse_mode: "Markdown" });
+  } catch (e) {
+    logger.error("Status check failed:", e);
+    ctx.reply("❌ Failed to fetch queue status.");
+  }
+};
+
+bot.command('status', checkAuth, statusHandler);
+bot.command('queue', checkAuth, statusHandler);
 
 bot.catch((err) => {
   logger.error('Bot Error:', err);

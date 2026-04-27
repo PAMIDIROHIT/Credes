@@ -9,6 +9,7 @@ const router = express.Router();
 router.post('/publish', auth, validate(publishPostSchema), postsController.publish);
 router.post('/schedule', auth, validate(publishPostSchema), postsController.publish);
 router.get('/', auth, postsController.list);
+router.get('/:id', auth, postsController.getById);
 router.post('/:id/retry', auth, validate(retryPostSchema), postsController.retry);
 
 export default router;

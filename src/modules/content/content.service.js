@@ -1,8 +1,10 @@
-import prisma from '../../config/db.js';
-import { decrypt } from '../../utils/crypto.util.js';
-import { buildPrompt } from '../../ai/prompt.builder.js';
+import { generateWithOpenAI } from '../../ai/openai.client.js';
+import { generateWithAnthropic } from '../../ai/anthropic.client.js';
 import { generateWithGemini } from '../../ai/gemini.client.js';
 import { generateWithGroq } from '../../ai/groq.client.js';
+import { buildPrompt } from '../../ai/prompt.builder.js';
+import { decrypt } from '../../utils/crypto.util.js';
+import prisma from '../../config/db.js';
 import { logger } from '../../utils/logger.js';
 
 export const generateContent = async (userId, data) => {
@@ -13,7 +15,11 @@ export const generateContent = async (userId, data) => {
   
   let userApiKey = null;
   if (aiKeys) {
-    if (model === 'gemini' && aiKeys.geminiKeyEnc) {
+    if (model === 'openai' && aiKeys.openaiKeyEnc) {
+      userApiKey = decrypt(aiKeys.openaiKeyEnc);
+    } else if (model === 'anthropic' && aiKeys.anthropicKeyEnc) {
+      userApiKey = decrypt(aiKeys.anthropicKeyEnc);
+    } else if (model === 'gemini' && aiKeys.geminiKeyEnc) {
       userApiKey = decrypt(aiKeys.geminiKeyEnc);
     } else if (model === 'groq' && aiKeys.groqKeyEnc) {
       userApiKey = decrypt(aiKeys.groqKeyEnc);
@@ -25,10 +31,13 @@ export const generateContent = async (userId, data) => {
 
   // 3. Call the appropriate AI Service
   let result;
-  if (model === 'groq') {
+  if (model === 'openai') {
+    result = await generateWithOpenAI(prompt, userApiKey);
+  } else if (model === 'anthropic') {
+    result = await generateWithAnthropic(prompt, userApiKey);
+  } else if (model === 'groq') {
     result = await generateWithGroq(prompt, userApiKey);
   } else {
-    // Default to Gemini as it's our primary free/fast tier
     result = await generateWithGemini(prompt, userApiKey);
   }
 
@@ -36,7 +45,7 @@ export const generateContent = async (userId, data) => {
 
   return {
     generated: result,
-    model_used: model === 'groq' ? 'llama3-70b-8192' : 'gemini-1.5-flash',
+    model_used: model,
     timestamp: new Date(),
   };
 };

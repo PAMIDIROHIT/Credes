@@ -1,0 +1,7 @@
+[2026-04-27T18:55:30.818Z] INFO: ≡ƒ¢░∩╕Å Using Upstash REST for Bot Session persistence
+[2026-04-27T18:55:34.640Z] INFO: ≡ƒÜÇ Initializing Postly Engine...
+[2026-04-27T18:55:34.642Z] INFO: Γ£à BullMQ Worker started
+(node:9612) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2026-04-27T18:55:34.699Z] INFO: Γ£à API Server is alive on port 3005
+[2026-04-27T18:55:35.310Z] INFO: Γ£à Telegram Bot @postly_rohit_ai_bot is active

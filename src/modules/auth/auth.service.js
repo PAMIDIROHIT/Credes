@@ -1,11 +1,9 @@
-import bcrypt from 'bcrypt';
-import prisma from '../../config/db.js';
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.util.js';
+import { AppError } from '../../utils/AppError.js';
 
 export const register = async (email, password, name) => {
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
-    throw new Error('User already exists');
+    throw new AppError('User already exists', 400);
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -22,7 +20,7 @@ export const register = async (email, password, name) => {
 export const login = async (email, password) => {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    throw new Error('Invalid email or password');
+    throw new AppError('Invalid email or password', 401);
   }
 
   const accessToken = signAccessToken({ id: user.id });

@@ -1,39 +1,93 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 import express from 'express';
-import app from './app.js';
+import cors from 'cors';
+import helmet from 'helmet';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { bot } from './modules/bot/bot.service.js';
 import { setupWorker } from './queue/worker.js';
-import { webhookCallback } from 'grammy';
+import authRoutes from './modules/auth/auth.routes.js';
+import userRoutes from './modules/user/user.routes.js';
+import contentRoutes from './modules/content/content.routes.js';
+import postsRoutes from './modules/posts/posts.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+import './modules/posts/posts.scheduler.js';
+import redisInstance from './config/redis.js';
+import { errorHandler } from './middlewares/errorHandler.middleware.js';
 
-const PORT = env.PORT || 3000;
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
-// Start BullMQ Worker
-setupWorker();
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  if (process.env.NODE_ENV !== 'test') process.exit(1);
+});
 
-// Ensure express parsing before webhook
+const app = express();
+const PORT = parseInt(env.PORT || '3005', 10);
+
+// Middlewares
+app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
-// Start Telegram Bot
-if (env.TELEGRAM_WEBHOOK_URL) {
-  // Use Webhook Strategy (Tracked via Webhook)
-  logger.info(`Setting up Telegram Webhook tracking at ${env.TELEGRAM_WEBHOOK_URL}/api/bot/webhook`);
-  app.use('/api/bot/webhook', webhookCallback(bot, 'express'));
-  bot.api.setWebhook(`${env.TELEGRAM_WEBHOOK_URL}/api/bot/webhook`)
-    .then(() => logger.info("✅ Telegram Webhook registered successfully"))
-    .catch(err => logger.error("❌ Telegram webhook registration failed:", err));
-} else if (env.TELEGRAM_BOT_TOKEN) {
-  // Use Long Polling (Dev Strategy fallback)
-  bot.start({
-    onStart: (botInfo) => logger.info(`Telegram Bot @${botInfo.username} is running in polling mode`),
-  }).catch(err => logger.error("Telegram bot failed to start:", err));
-} else {
-  logger.warn("TELEGRAM_BOT_TOKEN not found. Bot is disabled.");
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/posts', postsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// Health Check
+app.get('/health', (req, res) => res.json({ status: 'OK', uptime: process.uptime() }));
+
+// Global Error Handler
+app.use(errorHandler);
+
+// Initialize Components (Gracefully)
+export const init = async () => {
+  logger.info("🚀 Initializing Postly Engine...");
+  
+  // 1. Worker (Requires Redis)
+  if (redisInstance) {
+    try {
+      setupWorker();
+      logger.info("✅ BullMQ Worker started");
+    } catch (e) { 
+      logger.error("❌ Worker Initialization Failed:", e.message); 
+    }
+  }
+
+  // 2. Bot
+  if (env.TELEGRAM_BOT_TOKEN && process.env.NODE_ENV !== 'test') {
+    bot.start({
+      onStart: (botInfo) => logger.info(`✅ Telegram Bot @${botInfo.username} is active`),
+    }).catch(err => {
+      if (err.message.includes('Conflict')) {
+        logger.warn("⚠️ Bot Polling Conflict detected. Another instance is active.");
+      } else {
+        logger.error("❌ Bot failed:", err.message);
+      }
+    });
+  }
+
+  // 3. Server
+  if (process.env.NODE_ENV !== 'test') {
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`✅ API Server is alive on port ${PORT}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(`PORT ${PORT} is busy. Trying ${PORT + 1}...`);
+      }
+    });
+  }
+};
+
+// Only auto-init if not being imported for tests
+if (process.env.NODE_ENV !== 'test') {
+  init();
 }
 
-app.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`);
-});
+export default app;

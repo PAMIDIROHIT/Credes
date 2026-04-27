@@ -1,37 +1,40 @@
 export const buildPrompt = ({ idea, postType, tone, language, platforms }) => {
   const platformRules = {
-    twitter: "Twitter/X: Max 280 characters, 2–3 hashtags, punchy opener, hooks first.",
-    linkedin: "LinkedIn: 800–1300 characters, always professional tone regardless of global tone setting, 3–5 hashtags.",
-    instagram: "Instagram: Caption + 10–15 hashtags, emoji-friendly.",
-    threads: "Threads: 500 characters max, conversational style.",
+    twitter: "Twitter/X: Max 280 characters. 2-3 hashtags. Punchy opener. No threads.",
+    linkedin: "LinkedIn: 800-1300 characters. Professional regardless of global tone. 3-5 hashtags.",
+    instagram: "Instagram: Caption + 10-15 hashtags. Emoji-friendly.",
+    threads: "Threads: 500 characters max. Conversational.",
   };
 
-  const selectedRules = platforms.map(p => platformRules[p]).join('\n');
+  const selectedRules = platforms.map(p => `- ${platformRules[p]}`).join('\n');
 
   return `
-    You are an expert social media content creator. Generate content for the following platforms based on this idea:
+    You are a Senior Social Media Strategist. Your goal is to maximize engagement across different platforms.
     
-    IDEA: ${idea}
-    TYPE: ${postType}
-    GLOBAL TONE: ${tone}
-    LANGUAGE: ${language}
+    CORE IDEA: "${idea}"
+    CONTENT TYPE: ${postType}
+    OVERALL TONE: ${tone}
+    OUTPUT LANGUAGE: ${language}
     
-    PLATFORM RULES:
+    INSTRUCTIONS:
+    1. Adapt the CORE IDEA for each platform listed below.
+    2. Strictly follow the specific rules for each platform.
+    3. Ensure the tone is consistent with the GLOBAL TONE, except for LinkedIn where it should remain Professional/Authoritative.
+    
+    PLATFORM-SPECIFIC GUIDELINES:
     ${selectedRules}
     
     RESPONSE FORMAT:
-    Return ONLY a valid JSON object where keys are the platform names (e.g., "twitter", "linkedin").
-    Each platform object must contain:
-    - "content": The generated text
-    - "hashtags": Array of hashtags (if applicable)
-    - "char_count": length of the content
-    
-    Example:
+    You MUST return a JSON object. No extra text before or after the JSON.
+    Format:
     {
-      "twitter": { "content": "...", "hashtags": ["#tag1"], "char_count": 140 },
-      ...
+      "<platform_name>": {
+        "content": "Full text of the post",
+        "hashtags": ["#tag1", "#tag2"],
+        "char_count": length_in_characters
+      }
     }
     
-    Strictly follow the character limits and style for each platform.
+    Ensure the JSON is perfectly valid and escape all double quotes within the content.
   `;
 };
